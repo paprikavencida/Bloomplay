@@ -128,4 +128,4 @@ This project is open-source. A license can be added when the project's distribut
 ---
 
 **Bloomplay**  
-*A simple way to keep your media playing.*
+*Developed as part of Chroma Flower — Creative Technology & Media.*
