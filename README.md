@@ -128,4 +128,4 @@ This project is open-source. A license can be added when the project's distribut
 ---
 
 **Bloomplay**  
-*Developed as part of Chroma Flower — Creative Technology & Media.*
+*Part of the Chroma Flower creative ecosystem.*
