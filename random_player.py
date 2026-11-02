@@ -2,8 +2,10 @@ import os
 import random
 import vlc
 import time
+import threading
+import queue
 
-# CONFIG
+# CONFIGURATION
 VIDEO_FOLDER = r"C:\Users\YourUser\Videos"
 
 VIDEO_FORMATS = (
@@ -16,65 +18,198 @@ VIDEO_FORMATS = (
     ".flv"
 )
 
-# FIND VIDEOS
-def get_videos():
-    videos = []
+# FIND PLAYLISTS
+def get_playlists():
+    playlists = {}
 
-    for file in os.listdir(VIDEO_FOLDER):
-        if file.lower().endswith(VIDEO_FORMATS):
-            videos.append(os.path.join(VIDEO_FOLDER, file))
+    for folder in os.listdir(VIDEO_FOLDER):
+        folder_path = os.path.join(VIDEO_FOLDER, folder)
 
-    return videos
+        if os.path.isdir(folder_path):
+            videos = []
+
+            for root, dirs, files in os.walk(folder_path):
+                for file in files:
+                    if file.lower().endswith(VIDEO_FORMATS):
+                        videos.append(os.path.join(root, file))
+
+            if videos:
+                playlists[folder] = videos
+
+    return playlists
 
 
-# PLAYER
-videos = get_videos()
+# LOAD PLAYLISTS
+playlists = get_playlists()
+
+videos = []
+
+for playlist_name, playlist_videos in playlists.items():
+    for video in playlist_videos:
+        videos.append((video, playlist_name))
 
 if not videos:
-    print("No videos found in the folder!")
+    print("No videos found!")
     exit()
 
+print("Bloomplay - Random Video Player")
+print("--------------------------------")
+
+for name, playlist in playlists.items():
+    print(f"{name}: {len(playlist)} videos")
+
+print("--------------------------------")
+print(f"Total videos: {len(videos)}")
+
+
+# PLAYER SETUP
 player_instance = vlc.Instance()
 player = player_instance.media_player_new()
 
-last_video = None
+command_queue = queue.Queue()
 
-print(f"{len(videos)} videos found.")
-print("Starting random playback...\n")
+history = []
+history_index = -1
 
-while True:
+paused = False
+running = True
 
-    # Select a random video
-    available_videos = [
+
+# INPUT CONTROLS
+def input_controls():
+    while running:
+        try:
+            command = input(
+                "\nCommands [P]ause | [N]ext | [B]ack | [Q]uit: "
+            ).lower().strip()
+
+            command_queue.put(command)
+
+        except EOFError:
+            break
+
+
+input_thread = threading.Thread(
+    target=input_controls,
+    daemon=True
+)
+
+input_thread.start()
+
+
+# SELECT RANDOM VIDEO
+def get_random_video(current=None):
+    available = [
         video for video in videos
-        if video != last_video
+        if video != current
     ]
 
-    selected_video = random.choice(available_videos)
+    return random.choice(available)
 
-    last_video = selected_video
 
-    print(f"Now playing: {os.path.basename(selected_video)}")
+# PLAY VIDEO
+def play_video(video):
+    global paused
 
-    # Load video
-    media = player_instance.media_new(selected_video)
+    file_path, playlist_name = video
+
+    print("\n--------------------------------")
+    print(f"Playlist: {playlist_name}")
+    print(f"Now playing: {os.path.basename(file_path)}")
+    print("--------------------------------")
+
+    media = player_instance.media_new(file_path)
     player.set_media(media)
 
-    # Start playback
+    paused = False
     player.play()
 
-    # Wait until the video finishes
-    while True:
-        state = player.get_state()
 
-        if state == vlc.State.Ended:
+# START PLAYBACK
+current_video = get_random_video()
+
+history.append(current_video)
+history_index = 0
+
+play_video(current_video)
+
+
+# MAIN LOOP
+while running:
+
+    # CHECK COMMANDS
+    try:
+        command = command_queue.get_nowait()
+
+        if command == "p":
+            if paused:
+                player.play()
+                paused = False
+                print("Playback resumed.")
+            else:
+                player.pause()
+                paused = True
+                print("Playback paused.")
+
+        elif command == "n":
+            print("Skipping video...")
+
+            if history_index < len(history) - 1:
+                history = history[:history_index + 1]
+
+            current_video = get_random_video(current_video)
+
+            history.append(current_video)
+            history_index += 1
+
+            play_video(current_video)
+
+        elif command == "b":
+            if history_index > 0:
+                history_index -= 1
+                current_video = history[history_index]
+
+                print("Returning to previous video...")
+                play_video(current_video)
+            else:
+                print("No previous video.")
+
+        elif command == "q":
+            print("Closing Bloomplay...")
+            running = False
             break
+
+        else:
+            if command:
+                print("Unknown command.")
+
+    except queue.Empty:
+        pass
+
+    # CHECK PLAYBACK STATE
+    state = player.get_state()
+
+    if state == vlc.State.Ended or state == vlc.State.Error:
 
         if state == vlc.State.Error:
-            print("Playback error.")
-            break
+            print("Playback error. Skipping video...")
 
-        time.sleep(0.5)
+        if history_index < len(history) - 1:
+            history = history[:history_index + 1]
 
-    # Short delay
-    time.sleep(1)
+        current_video = get_random_video(current_video)
+
+        history.append(current_video)
+        history_index += 1
+
+        play_video(current_video)
+
+    time.sleep(0.2)
+
+
+# SHUTDOWN
+player.stop()
+player.release()
+player_instance.release()
+
+print("Bloomplay closed.")
