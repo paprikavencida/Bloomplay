@@ -261,8 +261,4 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
 ---
 
 **Bloomplay**  
-*A Chroma Flower project.*
-
-Free to use. Free to modify. Free to share.
-
 *Part of the Chroma Flower creative ecosystem.*
