@@ -1,0 +1,8 @@
+{
+    "video_folder": "CHANGE_THIS_TO_YOUR_VIDEO_FOLDER",
+    "fullscreen": true,
+    "volume": 75,
+    "history_limit": 20,
+    "playback_mode": "shuffle",
+    "resume_last_video": false
+}
